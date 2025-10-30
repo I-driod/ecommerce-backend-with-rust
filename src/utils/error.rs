@@ -1,19 +1,20 @@
+use crate::utils::response::ApiResponse;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+ 
 };
-use serde_json::json;
+
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Error, Debug)]
 pub enum AppError {
-    #[error("Mongo error: {0}")]
+    #[error("MongoDB error: {0}")]
     MongoError(#[from] mongodb::error::Error),
     
     #[error("MongoDB BSON error: {0}")]
     MongoBsonError(#[from] mongodb::bson::ser::Error),
-
+    
     #[error("Authentication failed: {0}")]
     AuthError(String),
     
@@ -29,7 +30,6 @@ pub enum AppError {
     #[error("Internal server error")]
     InternalError,
 }
-
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
@@ -51,10 +51,7 @@ impl IntoResponse for AppError {
             }
         };
 
-        let body = Json(json!({
-            "error": error_message,
-            "status": "error"
-        }));
+        let body = ApiResponse::<String>::error(&error_message);
 
         (status, body).into_response()
     }

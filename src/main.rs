@@ -1,66 +1,51 @@
-use std::net::SocketAddr;
-
 mod config;
 mod db;
-pub mod models;
-pub mod utils;
+mod handlers;
+mod middleware;
+mod models;
+mod routes;
+mod services;
+mod utils;
 
-
-use axum::{routing::get, Router};
+use dotenv::dotenv;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tower_http::cors::{Any, CorsLayer};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load environment variables
+    dotenv().ok();
 
-    //Initialize tracing for logging
-    tracing_subscriber::fmt::init();
+    // Initialize logging
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "ecommerce_backend=debug,tower_http=debug".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
+    // Connect to MongoDB
+    let app_state = Arc::new(db::AppState::init().await?);
+    tracing::info!("✅ MongoDB connection established");
 
-    let app:Router = Router::new().route("/", get(root_handler))
-    .route("/health", get(healt_check));
+    // Setup CORS
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
 
-    let addr = SocketAddr::from(([127,0,0,1], 3000));
+    // Build application with routes
+    let app = routes::api::create_routes(app_state).layer(cors);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    // Start server
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    tracing::info!("🚀 Server listening on {}", addr);
 
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
 
-
-}
-
-
-async  fn root_handler() -> &'static str {
-    "Welcome to the E-commerve API"
-}
-
-async fn healt_check() -> &'static str {
-    "OK"
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::env;
-
-    #[test]
-    fn test_get_collection_name_via_main() {
-        // Ensure the config module is compiled and the helper works
-        env::remove_var("MONGO_PRODUCTS_COLLECTION");
-        let name = crate::config::database::MongoDB::get_collection_name("MONGO_PRODUCTS_COLLECTION");
-        assert_eq!(name, "products".to_string());
-    }
-
-    #[tokio::test]
-    async fn test_init_connects_if_enabled_via_main() {
-        if env::var("RUN_DB_INTEGRATION_TESTS").is_err() {
-            eprintln!("skipping integration test; set RUN_DB_INTEGRATION_TESTS=1 to enable");
-            return;
-        }
-
-        env::set_var("DATABASE_URL", env::var("DATABASE_URL").unwrap_or_else(|_| "mongodb://127.0.0.1:27017".to_string()));
-        env::set_var("MONGO_DATABASE", env::var("MONGO_DATABASE").unwrap_or_else(|_| "test_ecommerce_db".to_string()));
-
-        let res = crate::config::database::MongoDB::init().await;
-        assert!(res.is_ok());
-    }
+    Ok(())
 }

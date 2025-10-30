@@ -1,3 +1,5 @@
+use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -33,5 +35,11 @@ impl<T: Serialize> ApiResponse<T> {
             message: Some(message.to_string()),
             data: None,
         }
+    }
+}
+
+impl<T: Serialize> IntoResponse for ApiResponse<T> {
+    fn into_response(self) -> Response {
+        Json(self).into_response()
     }
 }

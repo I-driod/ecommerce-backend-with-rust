@@ -8,7 +8,6 @@ pub struct User {
     pub id: Option<ObjectId>,
     pub email: String,
     pub phone: Option<String>,
-    #[serde(skip_serializing)]  // Never send password to client
     pub password_hash: String,
     pub full_name: Option<String>,
     pub role: String,  // "customer" or "admin"
