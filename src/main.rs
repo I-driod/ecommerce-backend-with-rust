@@ -2,6 +2,9 @@ use std::net::SocketAddr;
 
 mod config;
 mod db;
+pub mod models;
+pub mod utils;
+
 
 use axum::{routing::get, Router};
 
