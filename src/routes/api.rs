@@ -1,6 +1,7 @@
 use crate::db::AppState;
-use crate::handlers::{auth as auth_handlers, product as product_handlers};
-use crate::middleware::auth::auth_middleware;
+use crate::handlers::{auth as auth_handlers, product as product_handlers, upload as upload_handlers};
+use crate::middleware::auth::auth_middleware; 
+use axum::extract::{DefaultBodyLimit, };
 use axum::{
     middleware,
     routing::{delete, get, post, put},
@@ -20,6 +21,14 @@ pub fn create_routes(state: Arc<AppState>) -> Router {
         .route("/products/search", get(product_handlers::search_products))
         .route("/products/{id}", get(product_handlers::get_product));
 
+
+   // Upload routes (require authentication)
+    let upload_routes: Router<Arc<AppState>> = Router::new()
+        .route("/upload/image", post(upload_handlers::upload_single_image))
+        .route("/upload/images", post(upload_handlers::upload_multiple_images))
+        .layer(middleware::from_fn_with_state(jwt_secret.clone(), auth_middleware))
+        .layer(DefaultBodyLimit::max(10 * 1024 * 1024));  // 10MB max for uploads
+
     // Admin routes (require authentication)
     let admin_routes = Router::new()
         .route("/admin/products", post(product_handlers::create_product))
@@ -27,9 +36,10 @@ pub fn create_routes(state: Arc<AppState>) -> Router {
         .route("/admin/products/{id}", delete(product_handlers::delete_product))
         .layer(middleware::from_fn_with_state(jwt_secret.clone(), auth_middleware));
 
-    // Combine routes
+     // Combine routes
     Router::new()
         .nest("/api", public_routes)
+        .nest("/api", upload_routes)
         .nest("/api", admin_routes)
         .with_state(state)
 }

@@ -29,6 +29,8 @@ pub enum AppError {
     
     #[error("Internal server error")]
     InternalError,
+    #[error("S3 error: {0}")]
+    S3Error(String)
 }
 
 impl IntoResponse for AppError {
@@ -48,6 +50,10 @@ impl IntoResponse for AppError {
             AppError::PaymentError(ref msg) => (StatusCode::PAYMENT_REQUIRED, msg.clone()),
             AppError::InternalError => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal error".to_string())
+            }
+            AppError::S3Error(ref msg) => {
+                tracing::error!("S3 error: {:?}", msg);
+                (StatusCode::INTERNAL_SERVER_ERROR, msg.clone())
             }
         };
 
